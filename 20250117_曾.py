@@ -1,12 +1,12 @@
 import streamlit as st
 from openai import OpenAI
 import pandas as pd
-import dotenv  # 用於加載環境變量
+import dotenv
 import os
-from PIL import Image  # 用於圖像處理
-import base64  # 用於Base64編碼/解碼
-from io import BytesIO  # 用於處理二進制數據
-import random  # 用於生成隨機數
+from PIL import Image
+import base64
+from io import BytesIO
+import random
 import numpy as np
 import tempfile
 import json
