@@ -77,6 +77,59 @@ if "api_key" not in st.session_state:
     st.session_state.api_key = ""
 
 st.sidebar.header("Settings")
+
+# 初始化 session state 變數
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "thinking_protocol" not in st.session_state:
+    st.session_state.thinking_protocol = None
+
+# --- 模型選擇 ---
+OPENAI_MODELS = [
+    "gpt-4-turbo", 
+    "gpt-3.5-turbo-16k",
+    "gpt-4",
+    "gpt-4-32k",
+    "gpt-4o"
+]
+
+st.sidebar.subheader("選擇模型")
+selected_model = st.sidebar.selectbox("請選擇模型", OPENAI_MODELS, index=0)
+
+st.session_state.selected_model = selected_model
+
+# --- 清除記憶功能 ---
+if st.sidebar.button("🗑️ 清除記憶"):
+    # 清除所有記憶變數
+    st.session_state.memory = []
+    st.session_state.messages = []
+    st.session_state.thinking_protocol = None  # 清除 Thinking Protocol
+
+    # 顯示成功提示
+    st.sidebar.success("記憶已清除！")
+
+# --- 記憶狀態顯示 ---
+st.sidebar.subheader("🧠 記憶狀態")
+if st.session_state.messages:
+    memory_content = "\n".join([f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages])
+    st.sidebar.text_area("當前記憶", value=memory_content, height=200)
+else:
+    st.sidebar.text_area("當前記憶", value="尚無訊息。", height=200)
+
+# --- Thinking Protocol 上傳 ---
+st.sidebar.subheader("🧠 上傳 Thinking Protocol")
+uploaded_thinking_protocol = st.sidebar.file_uploader(
+    "選擇 thinking_protocol.md 檔案:", type=["md"], key="thinking_protocol_uploader"
+)
+if uploaded_thinking_protocol:
+    try:
+        thinking_protocol_content = uploaded_thinking_protocol.read().decode("utf-8")
+        st.session_state.thinking_protocol = thinking_protocol_content
+        st.session_state.messages.append({"role": "user", "content": f"📄 Thinking Protocol:\n\n{thinking_protocol_content}"})
+        st.sidebar.success("Thinking Protocol 上傳成功！")
+    except Exception as e:
+        st.sidebar.error(f"讀取 Thinking Protocol 時出錯: {e}")
+
 st.sidebar.write("🔑 **API Key Required**:\n- Get your OpenAI API key from [OpenAI API Key Page](https://platform.openai.com/)")
 
 st.session_state.api_key = st.sidebar.text_input(
@@ -87,7 +140,7 @@ if st.session_state.api_key:
     os.environ["OPENAI_API_KEY"] = st.session_state.api_key
 
     # 初始化 ChatOpenAI
-    llm = ChatOpenAI(api_key=st.session_state.api_key, model_name="gpt-4o")
+    llm = ChatOpenAI(api_key=st.session_state.api_key, model_name=st.session_state.selected_model)
 
     # 財報分析 Prompt
     prompt = ChatPromptTemplate.from_template(
@@ -118,11 +171,12 @@ if st.session_state.api_key:
 
     # 上傳 PDF 文件
     uploaded_files = st.sidebar.file_uploader("Upload PDF(s)", type="pdf", accept_multiple_files=True)
-
+    
+    
     if uploaded_files:
         if st.sidebar.button("Process Documents"):
             with st.spinner("Processing documents... Please wait."):
-
+                
                 def vector_embedding(uploaded_files):
                     if "vectors" not in st.session_state:
                         st.session_state.embeddings = OpenAIEmbeddings()
