@@ -20,3 +20,4 @@ pymupdf
 pdfplumber
 pdf2image
 pytesseract
+langchain_openai
