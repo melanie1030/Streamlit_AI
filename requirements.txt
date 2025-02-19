@@ -19,3 +19,4 @@ seaborn
 pymupdf
 pdfplumber
 pdf2image
+pytesseract
