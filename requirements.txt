@@ -18,3 +18,4 @@ streamlit_ace
 seaborn
 pymupdf
 pdfplumber
+pdf2image
