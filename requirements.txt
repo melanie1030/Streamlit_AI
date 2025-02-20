@@ -16,8 +16,11 @@ langchain_community
 fpdf2
 streamlit_ace
 seaborn
+
 pymupdf
 pdfplumber
 pdf2image
 pytesseract
 langchain_openai
+
+langchain_experimental
