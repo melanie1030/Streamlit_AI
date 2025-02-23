@@ -28,3 +28,4 @@ tabulate
 plotly
 scikit-learn
 statsmodels
+xlsxwriter
