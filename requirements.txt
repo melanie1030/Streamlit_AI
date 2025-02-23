@@ -27,3 +27,4 @@ langchain_experimental
 tabulate
 plotly
 scikit-learn
+statsmodels
