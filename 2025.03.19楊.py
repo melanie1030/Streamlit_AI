@@ -636,7 +636,10 @@ Important:
 
 Based on the request: {user_input}.
 Available columns: {csv_columns}.
-然後請使用繁體中文回應
+!重要!需求共有3
+1.圖表的顏色考慮使用其他的，不要使用預設
+2.在生成代碼時需要考慮plot的美觀性
+3.然後請使用繁體中文回應
 """
                         debug_log("Prompt constructed for CSV input with JSON response.")
                         append_message("system", prompt)
