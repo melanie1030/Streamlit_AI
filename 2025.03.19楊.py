@@ -13,16 +13,17 @@ from PIL import Image
 import google.generativeai as genai  # 新增Gemini依赖
 from streamlit_ace import st_ace
 import time
-
-# --- 在原本的 import 區域中，新增 ---
 import matplotlib.font_manager as fm
 import matplotlib
 
-# --- 在程式中適當位置（這裡直接放在 import 後） 新增字型設定 ---
-font_path = "./fonts/msjh.ttc"  # 這裡請替換成實際存在的中文字型檔案名稱
+# 指定字型檔路徑（相對路徑）
+font_path = "./fonts/msjh.ttc"
+
+# 加入字型並設定為預設字型
 fm.fontManager.addfont(font_path)
 matplotlib.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
 matplotlib.rcParams['axes.unicode_minus'] = False
+
 
 # --- 初始化设置 ---
 dotenv.load_dotenv()
@@ -84,7 +85,7 @@ def add_user_image(uploaded_file):
     try:
         st.session_state["last_uploaded_filename"] = uploaded_file.name
         current_model = st.session_state.get("selected_model", "").lower()
-        use_base64 = "gpt" in current_model
+        use_base64 = "gpt" in current_model  
         file_path = save_uploaded_file(uploaded_file)
         st.session_state.uploaded_image_path = file_path
         
@@ -129,9 +130,7 @@ def execute_code(code, global_vars=None):
         exec_globals = global_vars if global_vars else {}
         debug_log("Ready to execute the following code:")
         if st.session_state.get("debug_mode", False):
-            st.session_state.debug_logs.append(f"
-```python\n{code}\n```
-")
+            st.session_state.debug_logs.append(f"```python\n{code}\n```")
         debug_log(f"Executing code with global_vars: {list(exec_globals.keys())}")
         exec(code, exec_globals)
         output = exec_globals.get("output", "(No output returned)")
@@ -146,9 +145,7 @@ def execute_code(code, global_vars=None):
             return "Error executing code (hidden in non-debug mode)."
 
 def extract_json_block(response: str) -> str:
-    pattern = r'
-(?:json)?\s*(.*?)\s*
-'
+    pattern = r'```(?:json)?\s*(.*?)\s*```'
     match = re.search(pattern, response, re.DOTALL)
     if match:
         json_str = match.group(1).strip()
@@ -365,6 +362,8 @@ def get_cross_validated_response(model_params_gemini, max_retries=3):
     return final_response
 
 
+
+
 # ------------------------------
 # 主應用入口
 # ------------------------------
@@ -572,11 +571,8 @@ def main():
                     else:
                         st.write(item)
                         debug_log(f"Displaying non-image content from {message['role']}: {item}")
-            elif isinstance(message["content"], str) and "
-python" in message["content"]:
-                code_match = re.search(r'
-python\s*(.*?)\s*
-', message["content"], re.DOTALL)
+            elif isinstance(message["content"], str) and "```python" in message["content"]:
+                code_match = re.search(r'```python\s*(.*?)\s*```', message["content"], re.DOTALL)
                 if code_match:
                     code = code_match.group(1).strip()
                     st.code(code, language="python")
@@ -679,9 +675,7 @@ Available columns: {csv_columns}.
                     append_message("assistant", content)
                     code = response_json.get("code", "")
                     if code:
-                        code_block = f"
-```python\n{code}\n```
-"
+                        code_block = f"```python\n{code}\n```"
                         append_message("assistant", code_block)
                         with st.chat_message("assistant"):
                             st.code(code, language="python")
