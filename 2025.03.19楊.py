@@ -633,6 +633,7 @@ Important:
 1) 必須使用 st.session_state.uploaded_file_path 作為 CSV 路徑 (instead of a hardcoded path)
 2) Must use st.pyplot() to display any matplotlib figure
 3) Return only valid JSON (escape any special characters if needed)
+4) 請確保圖表中的字體已經套用以下字型：字型位置：{font_path}。請注意，這是必要的步驟，確保所有標題、標籤等文字都以指定字型顯示。
 
 Based on the request: {user_input}.
 Available columns: {csv_columns}.
