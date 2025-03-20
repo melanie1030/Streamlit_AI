@@ -374,7 +374,7 @@ def main():
     if "ace_code" not in st.session_state:
         st.session_state.ace_code = ""
     if "editor_location" not in st.session_state:
-        st.session_state.editor_location = "Main"
+        st.session_state.editor_location = "Sidebar"
     if "uploaded_file_path" not in st.session_state:
         st.session_state.uploaded_file_path = None
     if "uploaded_image_path" not in st.session_state:
