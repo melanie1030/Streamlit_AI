@@ -10,7 +10,7 @@ import base64
 from io import BytesIO
 from openai import OpenAI
 from PIL import Image
-import google.generativeai as genai  # 新增Gemini依赖
+import google.generativeai as genai  # 新增Gemini依賴
 from streamlit_ace import st_ace
 import time
 import matplotlib.font_manager as fm
@@ -25,10 +25,10 @@ matplotlib.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name
 matplotlib.rcParams['axes.unicode_minus'] = False
 
 
-# --- 初始化设置 ---
+# --- 初始化設置 ---
 dotenv.load_dotenv()
 UPLOAD_DIR = "uploaded_files"
-LLM_MODELS = [  # 修改后的模型列表
+LLM_MODELS = [  # 修改後的模型列表
     "gpt-4o",
     "gpt-3.5-turbo-16k",
     "gemini-1.5-flash",
@@ -268,7 +268,7 @@ def get_gemini_response(model_params, max_retries=3):
     return "請求失敗次數過多，請稍後重試"
 
 def get_openai_response(client, model_params, max_retries=3):
-    """处理OpenAI API请求"""
+    """處理OpenAI API請求"""
     retries = 0
     wait_time = 5
     model_name = model_params.get("model", "gpt-4-turbo")
@@ -286,25 +286,25 @@ def get_openai_response(client, model_params, max_retries=3):
                 debug_log("Detected multimodal input, adjusting max_tokens")
             response = client.chat.completions.create(**request_params)
             response_content = response.choices[0].message.content.strip()
-            debug_log(f"OpenAI原始响应：\n{response_content}")
+            debug_log(f"OpenAI原始回應：\n{response_content}")
             return response_content
         except Exception as e:
             if 'rate limit' in str(e).lower() or '429' in str(e):
-                debug_error(f"速率限制错误（尝试 {retries+1}/{max_retries}）：{e}")
-                st.warning(f"请求过于频繁，{wait_time}秒后重试...")
+                debug_error(f"速率限制錯誤（嘗試 {retries+1}/{max_retries}）：{e}")
+                st.warning(f"請求過於頻繁，{wait_time}秒後重試...")
                 time.sleep(wait_time)
                 retries += 1
                 wait_time *= 2
             elif 'invalid api key' in str(e).lower():
-                debug_error(f"API密钥无效：{e}")
-                st.error("OpenAI API密钥无效，请检查后重试")
+                debug_error(f"API金鑰無效：{e}")
+                st.error("OpenAI API金鑰無效，請檢查後重試")
                 return ""
             else:
-                debug_error(f"OpenAI请求异常：{str(e)}")
-                st.error(f"请求发生错误：{str(e)}")
+                debug_error(f"OpenAI請求異常：{str(e)}")
+                st.error(f"請求發生錯誤：{str(e)}")
                 return ""
-    debug_error(f"超过最大重试次数（{max_retries}次）")
-    st.error("请求失败次数过多，请稍后再试")
+    debug_error(f"超過最大重試次數（{max_retries}次）")
+    st.error("請求失敗次數過多，請稍後再試")
     return ""
 
 def get_llm_response(client, model_params, max_retries=3):
@@ -336,7 +336,6 @@ def get_cross_validated_response(model_params_gemini, max_retries=3):
     
     注意：此版本不再向 OpenAI 發送請求。
     """
-    # 為 Gemini 模型添加更明確的系統提示，說明其任務內容
     cross_validation_prompt = {
         "role": "system",
         "content": (
@@ -360,8 +359,6 @@ def get_cross_validated_response(model_params_gemini, max_retries=3):
         "gemini_response": response_gemini
     }
     return final_response
-
-
 
 
 # ------------------------------
@@ -529,36 +526,36 @@ def main():
         st.session_state.editor_location = location
         debug_log(f"Editor location set to: {st.session_state.editor_location}")
 
-        with st.expander("🛠️ 调试与会话信息", expanded=False):
+        with st.expander("🛠️ 調試與會話資訊", expanded=False):
             if st.session_state.debug_mode:
-                st.subheader("调试日志")
+                st.subheader("調試日誌")
                 if st.session_state.debug_logs:
                     debug_logs_combined = "\n".join(st.session_state.debug_logs)
                     st.text_area("Debug Logs", value=debug_logs_combined, height=200)
                 else:
-                    st.write("没有调试日志。")
-                st.subheader("调试错误")
+                    st.write("沒有調試日誌。")
+                st.subheader("調試錯誤")
                 if st.session_state.debug_errors:
                     debug_errors_combined = "\n".join(st.session_state.debug_errors)
                     st.text_area("Debug Errors", value=debug_errors_combined, height=200)
                 else:
-                    st.write("没有调试错误。")
-            st.subheader("会话信息 (messages.json)")
+                    st.write("沒有調試錯誤。")
+            st.subheader("會話資訊 (messages.json)")
             if "messages" in st.session_state:
                 messages_json = json.dumps(st.session_state.messages, ensure_ascii=False, indent=4)
                 st.text_area("messages.json", value=messages_json, height=300)
                 st.download_button(
-                    label="📥 下载 messages.json",
+                    label="📥 下載 messages.json",
                     data=messages_json,
                     file_name="messages.json",
                     mime="application/json"
                 )
                 st.markdown("---")
-                if st.button("📄 显示原始消息"):
-                    st.subheader("🔍 原始消息内容")
+                if st.button("📄 顯示原始消息"):
+                    st.subheader("🔍 原始消息內容")
                     st.json(st.session_state.messages)
             else:
-                st.write("没有找到 messages。")
+                st.write("沒有找到 messages。")
 
     for idx, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
