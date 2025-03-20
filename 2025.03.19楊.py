@@ -439,7 +439,7 @@ def main():
                     st.error("使用OpenAI模型需在下方輸入API金鑰 🔑")
                     st.stop()
 
-        st.session_state.debug_mode = st.checkbox("Debug Mode", value=False)
+        # st.session_state.debug_mode = st.checkbox("Debug Mode", value=False)
         st.session_state.deep_analysis_mode = st.checkbox("Deep Analysis Mode", value=False)
 
         if "memory" not in st.session_state:
@@ -469,7 +469,7 @@ def main():
             st.session_state.second_response = ""
             st.session_state.third_response = ""
             st.session_state.deep_analysis_image = None
-            st.session_state.debug_logs = []
+            # st.session_state.debug_logs = []
             st.session_state.debug_errors = []
             st.session_state.thinking_protocol = None
             st.success("Memory cleared!")
