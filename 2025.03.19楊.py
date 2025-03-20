@@ -440,7 +440,7 @@ def main():
                     st.stop()
 
         # st.session_state.debug_mode = st.checkbox("Debug Mode", value=False)
-        st.session_state.deep_analysis_mode = st.checkbox("Deep Analysis Mode", value=True)
+        st.session_state.deep_analysis_mode = st.checkbox("Deep Analysis Mode", value=False)
 
         if "memory" not in st.session_state:
             st.session_state.memory = []
