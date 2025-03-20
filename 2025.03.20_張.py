@@ -533,6 +533,15 @@ def generate_integrated_report(model_params_gemini, max_retries=3):
         if "chart_mapping" not in st.session_state:
             st.session_state.chart_mapping = {}
 
+        # 讀取 CSV 數據以提供給分析提示
+        csv_data = None
+        if hasattr(st.session_state, 'uploaded_file_path') and st.session_state.uploaded_file_path:
+            try:
+                csv_data = pd.read_csv(st.session_state.uploaded_file_path)
+                debug_log(f"CSV data loaded for analysis: {csv_data.shape}")
+            except Exception as e:
+                debug_error(f"Error reading CSV for analysis: {e}")
+        
         # 遍历消息历史提取关键信息
         for idx, msg in enumerate(st.session_state.messages):
             # 处理 Assistant 消息：提取模型报告
@@ -594,6 +603,29 @@ def generate_integrated_report(model_params_gemini, max_retries=3):
 訊息總數：{len(st.session_state.messages)}
 最新GPT報告位置：{analysis_materials['gpt_reports'][-1][0] if analysis_materials['gpt_reports'] else '無'}
 最新Gemini報告位置：{analysis_materials['gemini_reports'][-1][0] if analysis_materials['gemini_reports'] else '無'}
+
+### CSV資料基本資訊
+檔案名稱：{st.session_state.uploaded_file_path.split('/')[-1] if hasattr(st.session_state, 'uploaded_file_path') and st.session_state.uploaded_file_path else '無上傳檔案'}
+資料大小：{f"{csv_data.shape[0]} 列 × {csv_data.shape[1]} 欄" if csv_data is not None else '無資料'}
+欄位名稱：{', '.join(csv_data.columns.tolist()) if csv_data is not None else '無資料'}
+{
+    "數值型欄位統計：\n" + "\n".join([f"   - {col}: 平均值={csv_data[col].mean():.2f}, 中位數={csv_data[col].median():.2f}, 標準差={csv_data[col].std():.2f}" 
+                                for col in csv_data.select_dtypes(include=['number']).columns]) 
+    if csv_data is not None and not csv_data.select_dtypes(include=['number']).empty 
+    else "無數值型欄位統計資料"
+}
+{
+    "類別型欄位統計：\n" + "\n".join([f"   - {col}: 唯一值數量={csv_data[col].nunique()}, 最常見值='{csv_data[col].mode()[0]}' (出現{csv_data[col].value_counts().iloc[0]}次)" 
+                                for col in csv_data.select_dtypes(include=['object', 'category']).columns]) 
+    if csv_data is not None and not csv_data.select_dtypes(include=['object', 'category']).empty 
+    else "無類別型欄位統計資料"
+}
+{
+    "缺失值分析：\n" + "\n".join([f"   - {col}: {csv_data[col].isna().sum()}個缺失值 ({csv_data[col].isna().mean()*100:.1f}%)" 
+                               for col in csv_data.columns if csv_data[col].isna().any()]) 
+    if csv_data is not None and csv_data.isna().any().any() 
+    else "無缺失值"
+}
 
 ### 可驗證素材
 1. 分析圖表（共{len(analysis_materials['charts'])}張）：
@@ -852,6 +884,15 @@ def generate_integrated_report(model_params_gemini, max_retries=3):
         if "chart_mapping" not in st.session_state:
             st.session_state.chart_mapping = {}
 
+        # 讀取 CSV 數據以提供給分析提示
+        csv_data = None
+        if hasattr(st.session_state, 'uploaded_file_path') and st.session_state.uploaded_file_path:
+            try:
+                csv_data = pd.read_csv(st.session_state.uploaded_file_path)
+                debug_log(f"CSV data loaded for analysis: {csv_data.shape}")
+            except Exception as e:
+                debug_error(f"Error reading CSV for analysis: {e}")
+        
         # 遍历消息历史提取关键信息
         for idx, msg in enumerate(st.session_state.messages):
             # 处理 Assistant 消息：提取模型报告
@@ -906,13 +947,36 @@ def generate_integrated_report(model_params_gemini, max_retries=3):
         # 建構優化的分析提示詞 (不包含 Base64 數據)
         analysis_prompt = f"""
 [系統角色]
-您現在是AI模型稽核專家，請基於完整對話記憶流執行以下分析：
+您現在是資料科學與AI分析專家，請基於完整對話記憶流與CSV資料執行全面分析。您的任務是提供詳盡且資料驅動的報告，突顯關鍵發現和實用見解。
 
 [輸入資料結構]
 ### 原始訊息流概覽
 訊息總數：{len(st.session_state.messages)}
 最新GPT報告位置：{analysis_materials['gpt_reports'][-1][0] if analysis_materials['gpt_reports'] else '無'}
 最新Gemini報告位置：{analysis_materials['gemini_reports'][-1][0] if analysis_materials['gemini_reports'] else '無'}
+
+### CSV資料基本資訊（必須深入分析）
+檔案名稱：{st.session_state.uploaded_file_path.split('/')[-1] if hasattr(st.session_state, 'uploaded_file_path') and st.session_state.uploaded_file_path else '無上傳檔案'}
+資料大小：{f"{csv_data.shape[0]} 列 × {csv_data.shape[1]} 欄" if csv_data is not None else '無資料'}
+欄位名稱：{', '.join(csv_data.columns.tolist()) if csv_data is not None else '無資料'}
+{
+    "數值型欄位統計：\n" + "\n".join([f"   - {col}: 平均值={csv_data[col].mean():.2f}, 中位數={csv_data[col].median():.2f}, 標準差={csv_data[col].std():.2f}" 
+                                for col in csv_data.select_dtypes(include=['number']).columns]) 
+    if csv_data is not None and not csv_data.select_dtypes(include=['number']).empty 
+    else "無數值型欄位統計資料"
+}
+{
+    "類別型欄位統計：\n" + "\n".join([f"   - {col}: 唯一值數量={csv_data[col].nunique()}, 最常見值='{csv_data[col].mode()[0]}' (出現{csv_data[col].value_counts().iloc[0]}次)" 
+                                for col in csv_data.select_dtypes(include=['object', 'category']).columns]) 
+    if csv_data is not None and not csv_data.select_dtypes(include=['object', 'category']).empty 
+    else "無類別型欄位統計資料"
+}
+{
+    "缺失值分析：\n" + "\n".join([f"   - {col}: {csv_data[col].isna().sum()}個缺失值 ({csv_data[col].isna().mean()*100:.1f}%)" 
+                               for col in csv_data.columns if csv_data[col].isna().any()]) 
+    if csv_data is not None and csv_data.isna().any().any() 
+    else "無缺失值"
+}
 
 ### 可驗證素材
 1. 分析圖表（共{len(analysis_materials['charts'])}張）：
@@ -921,48 +985,72 @@ def generate_integrated_report(model_params_gemini, max_retries=3):
 2. 程式碼片段（共{len(analysis_materials['code_blocks'])}段）：
 {chr(10).join([f"   - 位置{cb['position']}: {cb['code'][:50]}..." for cb in analysis_materials['code_blocks']])}
 
+3. 先前分析總結
+- 請從對話歷史中提取所有模型之前的分析結論
+- 確保這些先前的發現不會在新報告中丟失
+- 特別注意之前生成的數據指標和趨勢預測
+
 [核心任務]
-執行三維度交叉驗證：
-🔍 邏輯一致性分析
+執行三維度交叉驗證並提供深入CSV資料分析：
+
+🔍 CSV數據深入分析（必須完成）
+   - 提供上傳CSV文件的全面分析，識別關鍵模式、相關性和異常
+   - 交叉分析數值型和類別型欄位之間的關係
+   - 挖掘並顯示不容易被察覺的數據洞見
+   - 基於CSV數據提供具體的建議和行動方案
+
+📊 模型分析比較
    - 比對GPT與Gemini在關鍵結論點的差異
    - 識別矛盾級別（輕微/中度/嚴重）
    - 範例：在銷售預測中，GPT預測Q3增長{{x}}%而Gemini預測{{y}}%，差異源於...
 
-📊 證據鏈完整性審查
+⚙️ 證據鏈完整性審查
    - 驗證圖表與結論的對應關係（請通過圖表ID引用，如：圖表 chart_1 顯示...）
    - 檢查程式碼片段是否支持分析結論
    - 範例：在位置{analysis_materials['code_blocks'][0]['position'] if analysis_materials['code_blocks'] else 'N/A'}的程式碼中...
 
-⚙️ 實施可行性評估
-   - 可執行性：程式碼是否包含完整環境依賴
-   - 可擴充性：是否容易新增資料來源
-   - 風險點：指出未處理的異常情況
-
 [強制格式]
 ```markdown
-# 整合分析報告
+# 整合資料分析報告
+
+## CSV檔案綜合分析（必須詳盡）
+- 檔案總覽：詳述檔案特徵和關鍵結構
+- 數據關鍵發現：
+  {"|".join(["分析維度", "數據證據", "業務影響", "建議行動"])}
+  {"|".join(["---"]*4)}
+  {{...}}  # 動態生成內容，至少3項關鍵發現
 
 ## 核心差異（最多3項）
-{"|".join(["差異維度", "GPT觀點", "Gemini觀點", "佐證材料"])}
-{"|".join(["---"]*4)}
+{{"|".join(["差異維度", "GPT觀點", "Gemini觀點", "整合結論"])}}
+{{"|".join(["---"]*4)}}
 {{...}}  # 動態生成內容
 
-## 關鍵發現
-### 1. 方法論對比
-- GPT採用的技術：...
-- Gemini的創新點：...
+## 數據洞察
+### 1. 趨勢與模式
+- 時間序列發現：...
+- 相關性分析：...
+- 異常點識別：...
+
+### 2. 預測與建議
+- 趨勢預測：...
+- 業務建議：...
+- 後續分析方向：...
+
+## 方法論評估
+- 分析技術比較：...
+- 模型準確性：...
 - 交叉驗證結果：...
 
-### 2. 風險預警
-🚨 級別：嚴重
-- 矛盾點描述：...
-- 影響範圍：...
-- 修正建議：...
+## 風險與優化建議
+🚨 風險級別：
+- 資料問題：...
+- 分析局限性：...
+- 改進建議：...
 
 ## 優化路線
-1. 立即行動：修正{analysis_materials['charts'][0]['id'] if analysis_materials['charts'] else 'N/A'}相關程式碼
-2. 中期計劃：...
-3. 長期戰略：...
+1. 立即行動：改進{{analysis_materials['charts'][0]['id'] if analysis_materials['charts'] else 'N/A'}}相關分析
+2. 中期計劃：擴展資料收集範圍...
+3. 長期戰略：建立整合性資料分析框架...
 ```
 
 [特別指令]
@@ -970,6 +1058,9 @@ def generate_integrated_report(model_params_gemini, max_retries=3):
 2. 禁用模糊詞彙（"可能"、"大概"等），需明確結論
 3. 引用圖表時，只需使用圖表ID（如 chart_1, chart_2 等），無需描述圖表內容
 4. 新增驗證哈希：{{"hash": "{hash(str(st.session_state.messages))}"}}
+5. 必須詳細分析上傳的CSV資料，並將其作為報告的核心部分
+6. 禁止生成空泛的結論，每個結論必須有CSV數據支持
+7. 確保報告結構完整，包括所有部分
 """
         # 生成 Gemini 响应
         cross_validation_prompt = {
@@ -1055,12 +1146,7 @@ def _render_integrated_report(report_data):
                 st.subheader(f"圖表 {idx+1}: {chart.get('label', chart_id)}")
                 
                 # 圖片顯示 - 固定寬度適合PDF
-                st.image(
-                    real_url,
-                    use_container_width=False,
-                    width=650,  # 適合A4紙張寬度的尺寸
-                    output_format="PNG"  # 確保PDF中的清晰度
-                )
+                st.image(real_url, caption=f"圖表 {chart_id}", use_container_width=False, width=650, output_format="PNG")
                 
                 # 圖表元數據 - 簡潔格式
                 st.caption(f"圖表ID: {chart_id}")
