@@ -13,7 +13,16 @@ from PIL import Image
 import google.generativeai as genai  # 新增Gemini依赖
 from streamlit_ace import st_ace
 import time
+
 import random
+import tempfile
+from reportlab.lib.pagesizes import letter
+from io import BytesIO
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.enums import TA_LEFT
 # --- 初始化设置 ---
 dotenv.load_dotenv()
 UPLOAD_DIR = "uploaded_files"
@@ -296,6 +305,8 @@ def get_openai_response(client, model_params, max_retries=3):
     st.error("请求失败次数过多，请稍后再试")
     return ""
 
+
+
 def get_llm_response(client, model_params, max_retries=3):
     """獲取LLM模型回覆（支持OpenAI和Gemini）"""
     model_name = model_params.get("model", "gpt-4-turbo")
@@ -376,54 +387,204 @@ def simulate_system_message_addition(final_response, report_type="交叉验证�
     # 调用现有消息追加机制
     append_message(formatted_message["role"], formatted_message["content"])
     debug_log(f"已注入系统消息: {str(formatted_message)[:100]}...")
-      
+    
+    # 新增：渲染圖表
+    if "charts_data" in final_response:
+        for chart in final_response["charts_data"]:
+            chart_id = chart["id"]
+            if chart_id in st.session_state.chart_mapping:
+                real_url = st.session_state.chart_mapping[chart_id]
+                try:
+                    st.image(
+                        real_url,
+                        caption=f"圖表 {chart_id}",
+                        use_container_width=True
+                    )
+                except Exception as e:
+                    st.error(f"圖表 {chart_id} 渲染失敗: {str(e)}")
+
+def _render_integrated_report(report_data):
+    """私有函數：渲染報告內容與控制項（完整修正版）"""
+    
+    # ===================================================================
+    # 1. 基本驗證與錯誤處理
+    # ===================================================================
+    if not isinstance(report_data, dict):
+        st.error("❌ 無效的報告數據格式")
+        debug_error(f"無效報告數據類型: {type(report_data)}")
+        return
+
+    # ===================================================================
+    # 2. 文字報告渲染
+    # ===================================================================
+    if "gemini_response" in report_data and report_data["gemini_response"]:
+        try:
+            st.markdown("## 📝 整合分析報告")
+            st.markdown(report_data["gemini_response"])
+        except Exception as e:
+            st.error("報告內容渲染失敗")
+            debug_error(f"文字渲染錯誤: {str(e)}\n{traceback.format_exc()}")
+    else:
+        st.warning("⚠️ 報告內容缺失，可能生成失敗或無有效分析結果")
+
+    # ===================================================================
+    # 3. 圖表渲染核心邏輯
+    # ===================================================================
+    if "charts_data" in report_data and report_data["charts_data"]:
+        st.markdown("---")
+        st.markdown("## 📊 相關圖表")
+        
+        # 初始化映射表檢查
+        if "chart_mapping" not in st.session_state:
+            st.error("圖表映射表丟失，請重新生成報告")
+            return
+
+        for chart in report_data["charts_data"]:
+            # 3.1 數據有效性驗證
+            if not isinstance(chart, dict) or "id" not in chart:
+                debug_error(f"無效圖表數據格式: {chart}")
+                continue
+                
+            chart_id = chart["id"]
+            
+            # 3.2 從映射表獲取真實數據
+            if chart_id not in st.session_state.chart_mapping:
+                st.warning(f"圖表 {chart_id} 數據缺失，可能已被清理")
+                debug_error(f"映射表缺少 {chart_id}，當前映射表: {list(st.session_state.chart_mapping.keys())}")
+                continue
+                
+            real_url = st.session_state.chart_mapping[chart_id]
+
+            # 3.3 動態渲染
+            try:
+                col1, col2 = st.columns([0.8, 0.2])
+                with col1:
+                    # 統一從映射表加載
+                    st.image(
+                        real_url,
+                        caption=f"圖表 {chart_id}",
+                        use_container_width=True,
+                        output_format="PNG"  # 確保相容性
+                    )
+                with col2:
+                    # 添加互動元素
+                    with st.expander("🔍 原始數據"):
+                        st.code(f"圖表ID: {chart_id}\n存儲路徑: {real_url[:100]}...", language="text")
+                        
+            except Exception as e:
+                error_msg = f"圖表 {chart_id} 渲染失敗: {str(e)}"
+                st.error(error_msg)
+                debug_error(f"{error_msg}\n{traceback.format_exc()}")
+
+    # ===================================================================
+    # 4. PDF下載按鈕（強化錯誤處理）
+    # ===================================================================
+    if report_data.get("pdf_buffer"):
+        try:
+            # 使用臨時文件確保跨平台相容性
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                tmp.write(report_data["pdf_buffer"].getvalue())
+                tmp_path = tmp.name
+                
+            with open(tmp_path, "rb") as f:
+                st.download_button(
+                    label="⬇️ 下載完整報告 (PDF)",
+                    data=f,
+                    file_name="整合分析報告.pdf",
+                    mime="application/pdf",
+                    help="包含文字分析與所有關聯圖表",
+                    key=f"dl_{hash(time.time())}"  # 避免按鈕ID衝突
+                )
+                
+        except Exception as e:
+            st.error("PDF文件生成失敗，請重試或聯繫管理員")
+            debug_error(f"PDF下載錯誤: {str(e)}\n{traceback.format_exc()}")
+            
+        tmp_path = ""
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                tmp_path = tmp.name  # 獲取完整路徑
+                # ... 寫入數據
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except Exception as e:
+                    debug_error(f"臨時文件清理失敗: {str(e)}")
+
 def generate_integrated_report(model_params_gemini, max_retries=3):
     """直接分析完整記憶流生成整合報告"""
+    default_report = {
+        "gemini_response": "報告生成失敗，請檢查日誌",
+        "charts_data": [],
+        "pdf_buffer": None
+    }
+    
     try:
-        # ===================================================================
-        # 新增：從原始訊息流提取關鍵資訊
-        # ===================================================================
+        # ==== 提取分析材料 ====
         analysis_materials = {
             "gpt_reports": [],
             "gemini_reports": [],
             "charts": [],
             "code_blocks": []
         }
+        
+        # 確保圖表映射表存在
+        if "chart_mapping" not in st.session_state:
+            st.session_state.chart_mapping = {}
 
-        # 遍歷訊息歷史提取要素
+        # 遍历消息历史提取关键信息
         for idx, msg in enumerate(st.session_state.messages):
-            # 提取模型報告
+            # 处理 Assistant 消息：提取模型报告
             if msg["role"] == "assistant":
                 content = msg["content"]
+                # 标准化内容格式（处理多模态消息）
                 if isinstance(content, list):
-                    content = " ".join([item.get("text", "") for item in content if isinstance(item, dict)])
-                
-                # 識別報告來源
+                    content = " ".join([
+                        item.get("text", "") 
+                        for item in content 
+                        if isinstance(item, dict)
+                    ])
+                # 识别报告来源
                 if "GPT" in content or "gpt" in content.lower():
                     analysis_materials["gpt_reports"].append((idx, content))
                 elif "Gemini" in content or "gemini" in content.lower():
                     analysis_materials["gemini_reports"].append((idx, content))
-
-            # 提取圖表資訊
+            
+            # 处理 User 消息：提取图表但不包含 Base64 数据
             if msg["role"] == "user" and isinstance(msg["content"], list):
                 for item in msg["content"]:
                     if isinstance(item, dict) and item.get("type") == "image_url":
                         chart_id = f"chart_{len(analysis_materials['charts']) + 1}"
+                        image_url = item["image_url"]["url"]
+                        
+                        # 將圖片路徑保存到映射表中，但不轉換為 Base64 以節省 Token
+                        # 僅當生成 PDF 或顯示圖表時才實際讀取圖片
+                        st.session_state.chart_mapping[chart_id] = image_url
+                        
+                        # 在分析材料中僅保存圖表 ID 和參考標籤，而非完整圖像數據
                         analysis_materials["charts"].append({
                             "id": chart_id,
-                            "url": item["image_url"]["url"][:100] + "..."  # 截斷避免過長
+                            "label": f"Chart {len(analysis_materials['charts']) + 1}"
                         })
-
-            # 提取程式碼片段
+                        
+                        debug_log(f"已索引圖表: {chart_id} -> {image_url[:30]}...")
+            
+            # 提取代码片段（独立于角色）
             if "```python" in str(msg["content"]):
-                analysis_materials["code_blocks"].append({
-                    "position": idx,
-                    "code": re.findall(r'```python(.*?)```', str(msg["content"]), re.DOTALL)[0].strip()
-                })
+                code_blocks = re.findall(r'```python(.*?)```', str(msg["content"]), re.DOTALL)
+                if code_blocks:
+                    analysis_materials["code_blocks"].append({
+                        "position": idx,
+                        "code": code_blocks[0].strip()
+                    })
 
-        # ===================================================================
-        # 重構的動態提示詞系統
-        # ===================================================================
+        # 構建圖表引用信息（僅使用 ID 而非數據）
+        chart_references = []
+        for idx, chart in enumerate(analysis_materials["charts"]):
+            chart_references.append(f"   - {chart['id']}: 參考標籤 '{chart['label']}'")
+        
+        # 建構優化的分析提示詞 (不包含 Base64 數據)
         analysis_prompt = f"""
 [系統角色]
 您現在是AI模型稽核專家，請基於完整對話記憶流執行以下分析：
@@ -436,7 +597,7 @@ def generate_integrated_report(model_params_gemini, max_retries=3):
 
 ### 可驗證素材
 1. 分析圖表（共{len(analysis_materials['charts'])}張）：
-{chr(10).join([f"   - {chart['id']}: {chart['url']}" for chart in analysis_materials['charts']])}
+{chr(10).join(chart_references)}
 
 2. 程式碼片段（共{len(analysis_materials['code_blocks'])}段）：
 {chr(10).join([f"   - 位置{cb['position']}: {cb['code'][:50]}..." for cb in analysis_materials['code_blocks']])}
@@ -449,7 +610,7 @@ def generate_integrated_report(model_params_gemini, max_retries=3):
    - 範例：在銷售預測中，GPT預測Q3增長{{x}}%而Gemini預測{{y}}%，差異源於...
 
 📊 證據鏈完整性審查
-   - 驗證圖表與結論的對應關係（必須引用具體chart_id）
+   - 驗證圖表與結論的對應關係（請通過圖表ID引用，如：圖表 chart_1 顯示...）
    - 檢查程式碼片段是否支持分析結論
    - 範例：在位置{analysis_materials['code_blocks'][0]['position'] if analysis_materials['code_blocks'] else 'N/A'}的程式碼中...
 
@@ -465,7 +626,7 @@ def generate_integrated_report(model_params_gemini, max_retries=3):
 ## 核心差異（最多3項）
 {"|".join(["差異維度", "GPT觀點", "Gemini觀點", "佐證材料"])}
 {"|".join(["---"]*4)}
-{"..."}  # 動態生成內容
+{{...}}  # 動態生成內容
 
 ## 關鍵發現
 ### 1. 方法論對比
@@ -480,48 +641,484 @@ def generate_integrated_report(model_params_gemini, max_retries=3):
 - 修正建議：...
 
 ## 優化路線
-1. 立即行動：修正chart_{analysis_materials['charts'][0]['id'] if analysis_materials['charts'] else 'N/A'}相關程式碼
+1. 立即行動：修正{analysis_materials['charts'][0]['id'] if analysis_materials['charts'] else 'N/A'}相關程式碼
 2. 中期計劃：...
 3. 長期戰略：...
+```
+
 [特別指令]
-
-必須使用訊息位置標記來源（如：@msg_12）
-
-圖表引用格式：chart_x（x必須存在於可驗證素材）
-
-程式碼引用格式：程式碼位置{{N}}
-
-禁用模糊詞彙（"可能"、"大概"等），需明確結論
-
-新增驗證哈希：{{"hash": "{hash(str(st.session_state.messages))}"}}
+1. 必須使用訊息位置標記來源（如：@msg_12）
+2. 禁用模糊詞彙（"可能"、"大概"等），需明確結論
+3. 引用圖表時，只需使用圖表ID（如 chart_1, chart_2 等），無需描述圖表內容
+4. 新增驗證哈希：{{"hash": "{hash(str(st.session_state.messages))}"}}
 """
+        # 生成 Gemini 响应
         cross_validation_prompt = {
             "role": "system",
             "content": analysis_prompt
         }
-
+        
+        # 插入系統提示並獲取響應
         st.session_state.messages.insert(0, cross_validation_prompt)
-
-        # 呼叫 Gemini 模型，內部會將完整記憶流作為輸入
         response_gemini = get_gemini_response(model_params_gemini, max_retries)
-
-        # 移除剛剛添加的系統提示，以免影響後續對話
         st.session_state.messages.pop(0)
 
+        # 构建最终报告 - 此時從映射表查詢圖片數據
         final_report = {
-            "gemini_response": response_gemini
+            "gemini_response": response_gemini,
+            "charts_data": [],
+            "pdf_buffer": None
         }
+        
+        # 將圖表引用轉換為完整圖表數據（僅在報告渲染階段）
+        for chart in analysis_materials["charts"]:
+            chart_id = chart["id"]
+            if chart_id in st.session_state.chart_mapping:
+                final_report["charts_data"].append({
+                    "id": chart_id,
+                    "label": chart.get("label", f"Chart {chart_id}")
+                })
+        
+        # 生成 PDF
+        pdf_buffer = _generate_pdf(final_report)
+        final_report["pdf_buffer"] = pdf_buffer
+        
+        _render_integrated_report(final_report)
         return final_report
-        # 添加可交互圖表引用
+        
     except Exception as e:
-        debug_error(f"生成整合報告失敗: {str(e)}")
+        debug_error(f"生成整合報告失敗: {str(e)}\n{traceback.format_exc()}")
         st.error("報告生成異常，請檢查日誌")
+        return default_report
 
+def _generate_pdf(report_data):
+    """将报告内容与图表生成PDF"""
+
+
+    # 註冊中文字體 - 使用系統自帶的中文字體
+    try:
+        # 嘗試註冊Windows下的微軟雅黑字體
+        pdfmetrics.registerFont(TTFont('SimSun', 'C:/Windows/Fonts/simsun.ttc'))
+        cn_font_name = 'SimSun'
+    except:
+        try:
+            # 嘗試註冊Arial Unicode MS (廣泛支持Unicode字符)
+            pdfmetrics.registerFont(TTFont('Arial', 'C:/Windows/Fonts/arial.ttf'))
+            cn_font_name = 'Arial'
+        except:
+            # 如果上述字體都無法找到，使用默認字體
+            cn_font_name = 'Helvetica'
+            debug_error("無法找到支持中文的字體，PDF中的中文可能顯示不正確")
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    story = []
+    
+    # 建立文檔樣式
+    styles = getSampleStyleSheet()
+    normal_style = ParagraphStyle(
+        'NormalWithCN',
+        parent=styles['Normal'],
+        fontName=cn_font_name,
+        fontSize=10,
+        leading=14,  # 行間距
+        wordWrap='CJK',  # 支援中日韓文字換行
+    )
+    
+    title_style = ParagraphStyle(
+        'TitleWithCN',
+        parent=styles['Heading1'],
+        fontName=cn_font_name,
+        fontSize=16,
+        leading=20,
+        alignment=TA_LEFT,
+    )
+    
+    # 添加標題
+    story.append(Paragraph("整合分析報告", title_style))
+    story.append(Spacer(1, 12))
+    
+    # 檢查必要字段
+    if "gemini_response" not in report_data:
+        debug_error("PDF生成失敗：缺少 gemini_response 字段")
+        story.append(Paragraph("報告生成失敗，缺少必要數據", normal_style))
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+    
+    # 處理報告内容 (使用Paragraph來支持換行和格式化)
+    text_content = report_data["gemini_response"] or "（報告内容為空）"
+    
+    # 處理Markdown格式
+    text_content = text_content.replace('\n\n', '<br/><br/>')
+    text_content = text_content.replace('\n', '<br/>')
+    
+    # 添加文本内容
+    story.append(Paragraph(text_content, normal_style))
+    
+    # 插入圖表（僅處理有效數據）
+    if report_data.get("charts_data"):
+        story.append(Spacer(1, 20))
+        story.append(Paragraph("📊 相關圖表", title_style))
+        story.append(Spacer(1, 12))
+    
+    for idx, chart in enumerate(report_data.get("charts_data", [])):
+        chart_id = chart["id"]
+        if chart_id in st.session_state.chart_mapping:
+            chart_fig = st.session_state.chart_mapping[chart_id]
+            try:
+                # 使用Paragraph添加圖表標題
+                chart_title = f"圖表 {idx+1}: {chart.get('label', chart_id)}"
+                story.append(Spacer(1, 10))
+                story.append(Paragraph(chart_title, normal_style))
+                
+                # 處理不同類型的圖表數據
+                img_bytes = None
+                
+                # 檢查數據類型並相應處理
+                try:
+                    if hasattr(chart_fig, 'write_image'):  # Plotly圖表對象
+                        debug_log(f"處理Plotly圖表: {chart_id}")
+                        img_bytes = BytesIO()
+                        chart_fig.write_image(img_bytes, format='png')
+                        img_bytes.seek(0)
+                    elif isinstance(chart_fig, str):  # 字符串（URL或base64）
+                        if chart_fig.startswith('data:image'):
+                            debug_log(f"處理Base64圖像: {chart_id}")
+                            # 處理base64編碼的圖像
+                            header, data = chart_fig.split(",", 1)
+                            img_bytes = BytesIO(base64.b64decode(data))
+                        else:
+                            # 記錄不支持的字符串格式
+                            debug_log(f"圖表格式不支持: {chart_id} - 字符串但非Base64")
+                            story.append(Paragraph(f"圖表 {chart_id} 格式不支持，無法在PDF中顯示", normal_style))
+                            continue
+                    else:
+                        # 使用默認方式嘗試處理
+                        debug_log(f"嘗試默認處理圖表: {chart_id} - 類型 {type(chart_fig)}")
+                        img_bytes = BytesIO()
+                        chart_fig.write_image(img_bytes, format='png')
+                        img_bytes.seek(0)
+                except Exception as e:
+                    debug_error(f"處理圖表數據失敗: {chart_id} - {str(e)}")
+                    story.append(Paragraph(f"圖表 {chart_id} 處理失敗: {str(e)}", normal_style))
+                    continue
+                
+                # 添加圖片到文檔
+                if img_bytes:
+                    from reportlab.platypus import Image
+                    img = Image(img_bytes, width=500, height=None)  # 自動調整高度
+                    story.append(img)
+                    story.append(Paragraph(f"圖表ID: {chart_id}", normal_style))
+                    story.append(Spacer(1, 10))
+                else:
+                    story.append(Paragraph(f"圖表 {chart_id} 無法獲取圖像數據", normal_style))
+            except Exception as e:
+                debug_error(f"PDF插入圖表失敗: {str(e)}")
+                story.append(Paragraph(f"圖表 {chart_id} 處理失敗: {str(e)}", normal_style))
+    
+    # 生成PDF
+    try:
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+    except Exception as e:
+        error_msg = f"PDF生成失敗: {str(e)}"
+        traceback_msg = traceback.format_exc()
+        debug_error(error_msg)
+        debug_error(traceback_msg)
+        st.error(error_msg)
+        st.code(traceback_msg, language="python")
+        return None
+
+def generate_integrated_report(model_params_gemini, max_retries=3):
+    """直接分析完整記憶流生成整合報告"""
+    default_report = {
+        "gemini_response": "報告生成失敗，請檢查日誌",
+        "charts_data": [],
+        "pdf_buffer": None
+    }
+    
+    try:
+        # ==== 提取分析材料 ====
+        analysis_materials = {
+            "gpt_reports": [],
+            "gemini_reports": [],
+            "charts": [],
+            "code_blocks": []
+        }
+        
+        # 確保圖表映射表存在
+        if "chart_mapping" not in st.session_state:
+            st.session_state.chart_mapping = {}
+
+        # 遍历消息历史提取关键信息
+        for idx, msg in enumerate(st.session_state.messages):
+            # 处理 Assistant 消息：提取模型报告
+            if msg["role"] == "assistant":
+                content = msg["content"]
+                # 标准化内容格式（处理多模态消息）
+                if isinstance(content, list):
+                    content = " ".join([
+                        item.get("text", "") 
+                        for item in content 
+                        if isinstance(item, dict)
+                    ])
+                # 识别报告来源
+                if "GPT" in content or "gpt" in content.lower():
+                    analysis_materials["gpt_reports"].append((idx, content))
+                elif "Gemini" in content or "gemini" in content.lower():
+                    analysis_materials["gemini_reports"].append((idx, content))
+            
+            # 处理 User 消息：提取图表但不包含 Base64 数据
+            if msg["role"] == "user" and isinstance(msg["content"], list):
+                for item in msg["content"]:
+                    if isinstance(item, dict) and item.get("type") == "image_url":
+                        chart_id = f"chart_{len(analysis_materials['charts']) + 1}"
+                        image_url = item["image_url"]["url"]
+                        
+                        # 將圖片路徑保存到映射表中，但不轉換為 Base64 以節省 Token
+                        # 僅當生成 PDF 或顯示圖表時才實際讀取圖片
+                        st.session_state.chart_mapping[chart_id] = image_url
+                        
+                        # 在分析材料中僅保存圖表 ID 和參考標籤，而非完整圖像數據
+                        analysis_materials["charts"].append({
+                            "id": chart_id,
+                            "label": f"Chart {len(analysis_materials['charts']) + 1}"
+                        })
+                        
+                        debug_log(f"已索引圖表: {chart_id} -> {image_url[:30]}...")
+            
+            # 提取代码片段（独立于角色）
+            if "```python" in str(msg["content"]):
+                code_blocks = re.findall(r'```python(.*?)```', str(msg["content"]), re.DOTALL)
+                if code_blocks:
+                    analysis_materials["code_blocks"].append({
+                        "position": idx,
+                        "code": code_blocks[0].strip()
+                    })
+
+        # 構建圖表引用信息（僅使用 ID 而非數據）
+        chart_references = []
+        for idx, chart in enumerate(analysis_materials["charts"]):
+            chart_references.append(f"   - {chart['id']}: 參考標籤 '{chart['label']}'")
+        
+        # 建構優化的分析提示詞 (不包含 Base64 數據)
+        analysis_prompt = f"""
+[系統角色]
+您現在是AI模型稽核專家，請基於完整對話記憶流執行以下分析：
+
+[輸入資料結構]
+### 原始訊息流概覽
+訊息總數：{len(st.session_state.messages)}
+最新GPT報告位置：{analysis_materials['gpt_reports'][-1][0] if analysis_materials['gpt_reports'] else '無'}
+最新Gemini報告位置：{analysis_materials['gemini_reports'][-1][0] if analysis_materials['gemini_reports'] else '無'}
+
+### 可驗證素材
+1. 分析圖表（共{len(analysis_materials['charts'])}張）：
+{chr(10).join(chart_references)}
+
+2. 程式碼片段（共{len(analysis_materials['code_blocks'])}段）：
+{chr(10).join([f"   - 位置{cb['position']}: {cb['code'][:50]}..." for cb in analysis_materials['code_blocks']])}
+
+[核心任務]
+執行三維度交叉驗證：
+🔍 邏輯一致性分析
+   - 比對GPT與Gemini在關鍵結論點的差異
+   - 識別矛盾級別（輕微/中度/嚴重）
+   - 範例：在銷售預測中，GPT預測Q3增長{{x}}%而Gemini預測{{y}}%，差異源於...
+
+📊 證據鏈完整性審查
+   - 驗證圖表與結論的對應關係（請通過圖表ID引用，如：圖表 chart_1 顯示...）
+   - 檢查程式碼片段是否支持分析結論
+   - 範例：在位置{analysis_materials['code_blocks'][0]['position'] if analysis_materials['code_blocks'] else 'N/A'}的程式碼中...
+
+⚙️ 實施可行性評估
+   - 可執行性：程式碼是否包含完整環境依賴
+   - 可擴充性：是否容易新增資料來源
+   - 風險點：指出未處理的異常情況
+
+[強制格式]
+```markdown
+# 整合分析報告
+
+## 核心差異（最多3項）
+{"|".join(["差異維度", "GPT觀點", "Gemini觀點", "佐證材料"])}
+{"|".join(["---"]*4)}
+{{...}}  # 動態生成內容
+
+## 關鍵發現
+### 1. 方法論對比
+- GPT採用的技術：...
+- Gemini的創新點：...
+- 交叉驗證結果：...
+
+### 2. 風險預警
+🚨 級別：嚴重
+- 矛盾點描述：...
+- 影響範圍：...
+- 修正建議：...
+
+## 優化路線
+1. 立即行動：修正{analysis_materials['charts'][0]['id'] if analysis_materials['charts'] else 'N/A'}相關程式碼
+2. 中期計劃：...
+3. 長期戰略：...
+```
+
+[特別指令]
+1. 必須使用訊息位置標記來源（如：@msg_12）
+2. 禁用模糊詞彙（"可能"、"大概"等），需明確結論
+3. 引用圖表時，只需使用圖表ID（如 chart_1, chart_2 等），無需描述圖表內容
+4. 新增驗證哈希：{{"hash": "{hash(str(st.session_state.messages))}"}}
+"""
+        # 生成 Gemini 响应
+        cross_validation_prompt = {
+            "role": "system",
+            "content": analysis_prompt
+        }
+        
+        # 插入系統提示並獲取響應
+        st.session_state.messages.insert(0, cross_validation_prompt)
+        response_gemini = get_gemini_response(model_params_gemini, max_retries)
+        st.session_state.messages.pop(0)
+
+        # 构建最终报告 - 此時從映射表查詢圖片數據
+        final_report = {
+            "gemini_response": response_gemini,
+            "charts_data": [],
+            "pdf_buffer": None
+        }
+        
+        # 將圖表引用轉換為完整圖表數據（僅在報告渲染階段）
+        for chart in analysis_materials["charts"]:
+            chart_id = chart["id"]
+            if chart_id in st.session_state.chart_mapping:
+                final_report["charts_data"].append({
+                    "id": chart_id,
+                    "label": chart.get("label", f"Chart {chart_id}")
+                })
+        
+        # 生成 PDF
+        pdf_buffer = _generate_pdf(final_report)
+        final_report["pdf_buffer"] = pdf_buffer
+        
+        _render_integrated_report(final_report)
+        return final_report
+        
+    except Exception as e:
+        debug_error(f"生成整合報告失敗: {str(e)}\n{traceback.format_exc()}")
+        st.error("報告生成異常，請檢查日誌")
+        return default_report
+
+def _render_integrated_report(report_data):
+    """渲染報告內容與控制項"""
+    if not isinstance(report_data, dict):
+        st.error("无效的报告数据格式")
+        return
+    
+    # 渲染文字报告
+    if "gemini_response" in report_data:
+        st.markdown(report_data["gemini_response"])
+    else:
+        st.warning("报告内容缺失")
+    
+    # ===================================================================
+    # 3. 圖表渲染 (PDF友好版本)
+    # ===================================================================
+    if "charts_data" in report_data and report_data["charts_data"]:
+        st.markdown("---")
+        st.markdown("## 📊 相關圖表")
+        
+        # 初始化映射表檢查
+        if "chart_mapping" not in st.session_state:
+            st.error("圖表映射表未初始化")
+            return
+
+        for idx, chart in enumerate(report_data["charts_data"]):
+            # 數據有效性驗證
+            if not isinstance(chart, dict) or "id" not in chart:
+                debug_error(f"無效圖表數據格式: {chart}")
+                continue
+                
+            chart_id = chart["id"]
+            
+            # 從映射表獲取真實數據
+            if chart_id not in st.session_state.chart_mapping:
+                st.warning(f"圖表 {chart_id} 數據缺失")
+                continue
+                
+            real_url = st.session_state.chart_mapping[chart_id]
+
+            # 圖表渲染 - 單列清晰版面
+            try:
+                # 標題和圖表編號
+                st.subheader(f"圖表 {idx+1}: {chart.get('label', chart_id)}")
+                
+                # 圖片顯示 - 固定寬度適合PDF
+                st.image(
+                    real_url,
+                    use_container_width=False,
+                    width=650,  # 適合A4紙張寬度的尺寸
+                    output_format="PNG"  # 確保PDF中的清晰度
+                )
+                
+                # 圖表元數據 - 簡潔格式
+                st.caption(f"圖表ID: {chart_id}")
+                
+                # 分隔線確保PDF中的圖表間距
+                if idx < len(report_data["charts_data"]) - 1:
+                    st.markdown("---")
+                    
+            except Exception as e:
+                st.error(f"圖表 {chart_id} 渲染失敗: {str(e)}")
+                debug_error(f"圖表渲染錯誤: {str(e)}")
+    # PDF下载按钮
+    if report_data.get("pdf_buffer"):
+        try:
+            tmp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                    tmp.write(report_data["pdf_buffer"].getvalue())
+                    tmp_path = tmp.name
+                    
+                with open(tmp_path, "rb") as f:
+                    st.download_button(
+                        label="⬇️ 下載完整報告 (PDF)",
+                        data=f,
+                        file_name="整合分析報告.pdf",
+                        mime="application/pdf",
+                        help="包含文字分析與報告圖表",
+                        key=f"dl_{hash(time.time())}"  # 避免按鈕ID衝突
+                    )
+            finally:
+                # 確保臨時文件被清理
+                if tmp_path and os.path.exists(tmp_path):
+                    try:
+                        os.unlink(tmp_path)
+                    except Exception as e:
+                        debug_error(f"臨時文件清理失敗: {str(e)}")
+                
+        except Exception as e:
+            st.error("PDF文件生成失敗，請重試或聯繫管理員")
+            debug_error(f"PDF生成異常: {str(e)}")
 
 def generate_questions():
     """基于对话历史生成3个后续问题"""
     if not st.session_state.messages:
         return []
+    
+    # 格式化最近的消息歷史
+    recent_messages = st.session_state.messages[-10:]
+    formatted_history = ""
+    for msg in recent_messages:
+        role = msg["role"]
+        content = msg["content"]
+        
+        # 處理多模態消息內容
+        if isinstance(content, list):
+            content = " ".join([item.get("text", "") for item in content if isinstance(item, dict) and "text" in item])
+        
+        formatted_history += f"{role.upper()}: {content}\n\n"
     
     # 构建生成问题的prompt
     prompt = f"""
@@ -531,18 +1128,28 @@ def generate_questions():
 3. 用数字编号列表格式返回，不要其他内容
 
 当前对话历史：
-{st.session_state.messages[-10:]}  # 取最近5条消息作为上下文
+{formatted_history}
 """
     
     # 使用现有模型生成问题
     try:
-        client = initialize_client(os.getenv("OPENAI_API_KEY"))  # 默认使用OpenAI
+        # 優先使用 session 中的 API key，如果沒有再從環境變量獲取
+        api_key = st.session_state.get("openai_api_key_input", os.getenv("OPENAI_API_KEY", ""))
+        if not api_key:
+            debug_error("缺少 OpenAI API 密鑰，無法生成問題建議")
+            return []
+            
+        client = initialize_client(api_key)
+        
+        # 創建正確的 API 請求格式
+        messages = [{"role": "user", "content": prompt}]
         response = get_openai_response(
             client,
             {
                 "model": "gpt-4o",
                 "temperature": 0.7,
-                "max_tokens": 200
+                "max_tokens": 200,
+                "messages": messages
             }
         )
         
@@ -558,7 +1165,7 @@ def generate_questions():
         return valid_questions[:3]  # 确保最多返回3个问题
     
     except Exception as e:
-        debug_error(f"生成问题失败: {str(e)}")
+        debug_error(f"生成問題失敗: {str(e)}")
         return []
 
 def show_question_suggestions():
@@ -604,9 +1211,81 @@ def show_question_suggestions():
                 st.markdown(f'<div class="source-count">{source_count} 个来源</div>', unsafe_allow_html=True)
             
             if clicked:
-                st.session_state.question_input = q  # 自动填充输入框
+                if "question_input" in st.session_state:
+                    del st.session_state.question_input
+                
+                # 直接模拟用户消息
+                append_message("user", q)
+                debug_log(f"已模拟用户提问: {q}")
+                
+                # 強制刷新并跳转到消息处理
+                st.session_state.need_process_question = True  # 新增状态标记
                 st.rerun()
-
+# 新增统一的问题处理函数
+def process_question():
+    """处理自动生成的问题"""
+    try:
+        # 获取最后一条用户消息
+        last_user_msg = next(
+            msg for msg in reversed(st.session_state.messages)
+            if msg["role"] == "user"
+        )
+        
+        # 調用模型生成回复
+        with st.spinner("正在生成回答..."):
+            # 優先使用 session 中的 API key，如果沒有再從環境變量獲取
+            api_key = st.session_state.get("openai_api_key_input", os.getenv("OPENAI_API_KEY", ""))
+            if not api_key:
+                st.error("缺少 OpenAI API 密鑰，無法生成回答")
+                debug_error("缺少 OpenAI API 密鑰，無法生成回答")
+                return
+                
+            client = initialize_client(api_key)
+            
+            # 取最近 10 條消息作為上下文，包括最新的用戶問題
+            recent_messages = st.session_state.messages[-10:]
+            
+            # 創建 API 請求所需的消息格式
+            formatted_messages = []
+            for msg in recent_messages:
+                content = msg["content"]
+                # 處理多模態消息
+                if isinstance(content, list):
+                    # 過濾出純文本內容
+                    text_parts = [item.get("text", "") for item in content if isinstance(item, dict) and "text" in item]
+                    content = " ".join(text_parts)
+                
+                formatted_messages.append({
+                    "role": msg["role"],
+                    "content": content
+                })
+            
+            # 使用合適的模型參數
+            model_name = st.session_state.get("selected_model", "gpt-4o")
+            model_params = {
+                "model": model_name,
+                "temperature": 0.7,
+                "messages": formatted_messages
+            }
+            
+            # 調用 OpenAI API 獲取回覆
+            response = get_openai_response(client, model_params)
+            
+            # 添加助手回复
+            append_message("assistant", response)
+            
+            # 渲染消息
+            with st.chat_message("assistant"):
+                st.write(response)
+                
+            # 生成新的問題建議
+            st.session_state.generated_questions = generate_questions()
+                
+    except StopIteration:
+        debug_error("未找到用户问题消息")
+    except Exception as e:
+        debug_error(f"问题处理失败: {str(e)}")
+        st.error(f"回答生成失敗: {str(e)}")
 
 
 
@@ -723,6 +1402,7 @@ def main():
             st.session_state.debug_logs = []
             st.session_state.debug_errors = []
             st.session_state.thinking_protocol = None
+            st.session_state.gemini_ai_chat = None
             st.success("Memory cleared!")
             debug_log("Memory has been cleared.")
 
@@ -747,9 +1427,13 @@ def main():
                 st.dataframe(csv_data)
                 debug_log(f"CSV Data Columns: {list(csv_data.columns)}")
             except Exception as e:
+                csv_columns = "Unable to read columns"
                 if st.session_state.debug_mode:
                     st.error(f"Error reading CSV: {e}")
                 debug_log(f"Error reading CSV: {e}")
+        else:
+            csv_columns = "No file uploaded"
+            debug_log("No CSV file uploaded.")
 
         st.subheader("🖼️ Upload an Image")
         uploaded_image = st.file_uploader("Choose an image:", type=["png", "jpg", "jpeg"], key="image_uploader")
@@ -823,7 +1507,7 @@ def main():
                 for item in message["content"]:
                     if isinstance(item, dict) and item.get("type") == "image_url":
                         image_url = item["image_url"]["url"]
-                        st.image(image_url, caption="📷 上傳的圖片", use_column_width=True)
+                        st.image(image_url, caption="📷 上傳的圖片", use_container_width=True)
                         debug_log(f"Displaying image from {message['role']}: {image_url}")
                     else:
                         st.write(item)
@@ -837,13 +1521,11 @@ def main():
                 else:
                     st.write(message["content"])
                     debug_log(f"Displaying message {idx} from {message['role']}: {message['content']}")
-            else:
-                st.write(message["content"])
-                debug_log(f"Displaying message {idx} from {message['role']}: {message['content']}")
-    show_question_suggestions()
-
+    if st.session_state.get("need_process_question", False):
+        st.session_state.need_process_question = False
+        process_question()
     user_input = st.chat_input("Hi! Ask me anything...", key="main_input")
-
+    show_question_suggestions()  
     if user_input:
         append_message("user", user_input)
         with st.chat_message("user"):
@@ -881,8 +1563,8 @@ def main():
                         except Exception as e:
                             csv_columns = "Unable to read columns"
                             if st.session_state.debug_mode:
-                                st.error(f"Error reading columns: {e}")
-                            debug_log(f"Error reading columns: {e}")
+                                st.error(f"Error reading CSV: {e}")
+                            debug_log(f"Error reading CSV: {e}")
                     else:
                         csv_columns = "No file uploaded"
                         debug_log("No CSV file uploaded.")
@@ -1003,7 +1685,7 @@ Second response chart analysis content: {second_raw_response}
                                 st.write("#### [Deep Analysis] Chart:")
                                 try:
                                     img_data = base64.b64decode(st.session_state.deep_analysis_image)
-                                    st.image(img_data, caption="Chart generated from deep analysis", use_column_width=True)
+                                    st.image(img_data, caption="Chart generated from deep analysis", use_container_width=True)
                                     debug_log("Deep analysis chart displayed.")
                                 except Exception as e:
                                     if st.session_state.debug_mode:
@@ -1033,13 +1715,21 @@ Second response chart analysis content: {second_raw_response}
             "temperature": 0.5,
             "max_tokens": 4096
         }
-        cross_validated_response = get_cross_validated_response(model_params_gemini)
-        simulate_system_message_addition(cross_validated_response)
-        cross_finale_report = generate_integrated_report(model_params_gemini)
-        st.write("### Gemini 回答")
-        st.write(cross_validated_response["gemini_response"])
-        st.write("### 整合分析報告")
-        st.write(cross_finale_report["gemini_response"])
+        with st.spinner("正在執行二模型交叉驗證..."):
+            cross_validated_response = get_cross_validated_response(model_params_gemini)
+            # 將交叉驗證結果添加到記憶流中，這樣整合報告可以使用這些結果
+            simulate_system_message_addition(cross_validated_response, "交叉驗證報告")
+            
+            # 顯示交叉驗證結果
+            with st.expander("🔍 交叉驗證結果", expanded=True):
+                st.markdown("### Gemini 交叉驗證")
+                st.markdown(cross_validated_response["gemini_response"])
+        
+        # 顯示整合報告（圖表和PDF下載按鈕由_render_integrated_report函數處理）
+        with st.spinner("正在生成整合報告..."):
+            st.markdown("## 📊 整合分析報告")
+            generate_integrated_report(model_params_gemini)
+                    
     if "ace_code" not in st.session_state:
         st.session_state.ace_code = ""
 
