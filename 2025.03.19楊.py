@@ -523,8 +523,8 @@ def main():
         st.subheader("Editor Location")
         location = st.radio(
             "Choose where to display the editor:",
-            ["Sidebar", "Main"],
-            index=0 if st.session_state.editor_location == "Main" else 1
+            ["Main", "Sidebar"],
+            index=1 if st.session_state.editor_location == "Sidebar" else 0
         )
         st.session_state.editor_location = location
         debug_log(f"Editor location set to: {st.session_state.editor_location}")
