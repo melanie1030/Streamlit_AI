@@ -29,3 +29,4 @@ plotly
 scikit-learn
 statsmodels
 xlsxwriter
+google-generativeai
