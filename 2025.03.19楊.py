@@ -327,7 +327,7 @@ def get_llm_response(client, model_params, max_retries=3):
 
 def get_cross_validated_response(model_params_gemini, max_retries=3):
     """
-    二模型交叉驗證（僅使用 Gemini 模型驗證）：
+    多模型交叉驗證（僅使用 Gemini 模型驗證）：
     1. 在記憶流中添加一則系統提示，要求 Gemini 使用全部對話記憶進行交叉驗證，
        清楚說明其任務：檢查先前回答的正確性、指出潛在錯誤並提供數據或具體理由支持，
        並對比不同模型的優缺點（若適用）。
