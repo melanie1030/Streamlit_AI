@@ -752,7 +752,7 @@ Second response chart analysis content: {second_raw_response}
                 debug_log(f"An error occurred: {e}")
 
     # 新增：二模型交叉驗證按鈕
-    if st.button("二模型交叉驗證"):
+    if st.button("多模型交叉驗證"):
         if openai_api_key:
             client = initialize_client(openai_api_key)
         else:
