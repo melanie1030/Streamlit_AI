@@ -278,11 +278,11 @@ def get_openai_response(client, model_params, max_retries=3):
                 "model": model_name,
                 "messages": st.session_state.messages,
                 "temperature": model_params.get("temperature", 0.3),
-                "max_tokens": model_params.get("max_tokens", 4096),
+                "max_tokens": model_params.get("max_tokens", 16384),
                 "stream": False
             }
             if any(msg.get("content") and isinstance(msg["content"], list) for msg in st.session_state.messages):
-                request_params["max_tokens"] = 4096
+                request_params["max_tokens"] = 16384
                 debug_log("Detected multimodal input, adjusting max_tokens")
             response = client.chat.completions.create(**request_params)
             response_content = response.choices[0].message.content.strip()
@@ -651,7 +651,7 @@ Available columns: {csv_columns}.
                 model_params = {
                     "model": selected_model,
                     "temperature": 0.5,
-                    "max_tokens": 4096
+                    "max_tokens": 16384
                 }
                 response_content = get_llm_response(client, model_params)
                 debug_log(f"Full assistant response: {response_content}")
@@ -763,12 +763,12 @@ Second response chart analysis content: {second_raw_response}
         model_params_openai = {
             "model": "gpt-4o",
             "temperature": 0.5,
-            "max_tokens": 4096
+            "max_tokens": 16384
         }
         model_params_gemini = {
             "model": "models/gemini-2.0-flash",
             "temperature": 0.5,
-            "max_tokens": 4096
+            "max_tokens": 16384
         }
         cross_validated_response = cross_validated_response = get_cross_validated_response(model_params_gemini)
         
