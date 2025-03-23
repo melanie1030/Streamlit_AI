@@ -13,6 +13,8 @@ from PIL import Image
 import google.generativeai as genai  # 新增Gemini依赖
 from streamlit_ace import st_ace
 import time
+import matplotlib.font_manager as fm
+import matplotlib
 
 import random
 import tempfile
@@ -24,6 +26,13 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_LEFT
 # --- 初始化设置 ---
+
+font_path = "C:/fonts/msjh.ttc"
+fm.fontManager.addfont(font_path)
+matplotlib.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
+matplotlib.rcParams['axes.unicode_minus'] = False
+
+
 dotenv.load_dotenv()
 UPLOAD_DIR = "uploaded_files"
 LLM_MODELS = [  # 修改后的模型列表
@@ -1196,7 +1205,7 @@ def main():
     if "ace_code" not in st.session_state:
         st.session_state.ace_code = ""
     if "editor_location" not in st.session_state:
-        st.session_state.editor_location = "Main"
+        st.session_state.editor_location = "Sidebar"
     if "uploaded_file_path" not in st.session_state:
         st.session_state.uploaded_file_path = None
     if "uploaded_image_path" not in st.session_state:
@@ -1260,7 +1269,7 @@ def main():
                     st.stop()
 
         st.session_state.debug_mode = st.checkbox("Debug Mode", value=False)
-        st.session_state.deep_analysis_mode = st.checkbox("Deep Analysis Mode", value=False)
+        st.session_state.deep_analysis_mode = st.checkbox("Deep Analysis Mode", value=True)
 
         if "memory" not in st.session_state:
             st.session_state.memory = []
@@ -1469,10 +1478,14 @@ Important:
 1) 必須使用 st.session_state.uploaded_file_path 作為 CSV 路徑 (instead of a hardcoded path)
 2) Must use st.pyplot() to display any matplotlib figure
 3) Return only valid JSON (escape any special characters if needed)
-
+4) 請確保圖表中的字體已經套用以下字型：字型位置：{font_path}。請注意，這是必要的步驟，確保所有標題、標籤等文字都以指定字型顯示。
 Based on the request: {user_input}.
 Available columns: {csv_columns}.
-然後請使用繁體中文回應
+
+!重要!需求共有3
+1.圖表的顏色考慮使用其他的，不要使用預設
+2.在生成代碼時需要考慮plot的美觀性
+3.然後請使用繁體中文回應
 """
                         debug_log("Prompt constructed for CSV input with JSON response.")
                         append_message("system", prompt)
@@ -1486,7 +1499,7 @@ Available columns: {csv_columns}.
                 model_params = {
                     "model": selected_model,
                     "temperature": 0.5,
-                    "max_tokens": 4096
+                    "max_tokens": 16384
                 }
                 response_content = get_llm_response(client, model_params)
                 debug_log(f"Full assistant response: {response_content}")
