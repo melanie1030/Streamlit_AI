@@ -322,12 +322,12 @@ def get_llm_response(client, model_params, max_retries=3):
         return ""
 
 # ------------------------------
-# 新增二模型交叉驗證函數
+# 新增多模型交叉驗證函數
 # ------------------------------
 
 def get_cross_validated_response(model_params_gemini, max_retries=3):
     """
-    二模型交叉驗證（僅使用 Gemini 模型驗證）：
+    多模型交叉驗證（僅使用 Gemini 模型驗證）：
     1. 在記憶流中添加一則系統提示，要求 Gemini 使用全部對話記憶進行交叉驗證，
        清楚說明其任務：檢查先前回答的正確性、指出潛在錯誤並提供數據或具體理由支持，
        並對比不同模型的優缺點（若適用）。
@@ -1782,8 +1782,8 @@ Second response chart analysis content: {second_raw_response}
                     st.error(f"An error occurred: {e}")
                 debug_log(f"An error occurred: {e}")
 
-    # 新增：二模型交叉驗證按鈕
-    if st.button("二模型交叉驗證"):
+    # 新增：多模型交叉驗證按鈕
+    if st.button("多模型交叉驗證"):
         if openai_api_key:
             client = initialize_client(openai_api_key)
         else:
@@ -1801,7 +1801,7 @@ Second response chart analysis content: {second_raw_response}
             "temperature": 0.5,
             "max_tokens": 4096
         }
-        with st.spinner("正在執行二模型交叉驗證..."):
+        with st.spinner("正在執行多模型交叉驗證..."):
             cross_validated_response = get_cross_validated_response(model_params_gemini)
             # 將交叉驗證結果添加到記憶流中，這樣整合報告可以使用這些結果
             simulate_system_message_addition(cross_validated_response, "交叉驗證報告")
