@@ -35,7 +35,7 @@ EMAIL_PASSWORD = "dkyu hpmy tpai rjwf"
 
 # 設置頁面配置
 st.set_page_config(
-    page_title="商店銷售分析系統",
+    page_title="銷貨損益分析小幫手",
     page_icon="🏪",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -1495,7 +1495,7 @@ def analyze_products(df):
         fig = px.box(df, 
                     x='Item_Type', 
                     y='Item_MRP',
-                    title='各類型商品價格分布')
+                    title='Product Price Distribution by Type')
         st.plotly_chart(fig, use_container_width=True)
     
     # 商品脂肪含量分析
@@ -1506,14 +1506,14 @@ def analyze_products(df):
         fat_content_dist = df['Item_Fat_Content'].value_counts()
         fig = px.pie(values=fat_content_dist.values,
                     names=fat_content_dist.index,
-                    title='商品脂肪含量分布')
+                    title='Distribution of Fat Content')
         st.plotly_chart(fig, use_container_width=True)
     
     with col4:
         avg_price_by_fat = df.groupby('Item_Fat_Content')['Item_MRP'].mean().round(2)
         fig = px.bar(x=avg_price_by_fat.index,
                     y=avg_price_by_fat.values,
-                    title='不同脂肪含量商品的平均價格')
+                    title='Average Price by Fat Content')
         st.plotly_chart(fig, use_container_width=True)
     
     # 商品能見度分析
@@ -1523,7 +1523,7 @@ def analyze_products(df):
     with col5:
         fig = px.histogram(df,
                           x='Item_Visibility',
-                          title='商品能見度分布',
+                          title='Product Visibility Distribution',
                           nbins=50)
         st.plotly_chart(fig, use_container_width=True)
     
@@ -1531,7 +1531,7 @@ def analyze_products(df):
         avg_visibility_by_type = df.groupby('Item_Type')['Item_Visibility'].mean().sort_values(ascending=False)
         fig = px.bar(x=avg_visibility_by_type.index,
                     y=avg_visibility_by_type.values,
-                    title='各類型商品的平均能見度')
+                    title='Average Visibility by Product Type')
         st.plotly_chart(fig, use_container_width=True)
 
 def analyze_stores(df):
@@ -1572,7 +1572,7 @@ def analyze_stores(df):
         st.subheader("商店規模分布")
         size_dist = df.groupby(['Outlet_Type', 'Outlet_Size']).size().unstack(fill_value=0)
         fig = px.bar(size_dist, 
-                    title='不同類型商店的規模分布',
+                    title='Store Size Distribution by Type',
                     barmode='stack')
         st.plotly_chart(fig, use_container_width=True)
     
@@ -1584,14 +1584,14 @@ def analyze_stores(df):
         location_dist = df.groupby('Outlet_Location_Type')['Outlet_Identifier'].nunique()
         fig = px.pie(values=location_dist.values,
                     names=location_dist.index,
-                    title='商店位置分布')
+                    title='Store Location Distribution')
         st.plotly_chart(fig, use_container_width=True)
     
     with col4:
         avg_price_by_location = df.groupby('Outlet_Location_Type')['Item_MRP'].mean().round(2)
         fig = px.bar(x=avg_price_by_location.index,
                     y=avg_price_by_location.values,
-                    title='不同位置商店的平均商品價格')
+                    title='Average Product Price by Store Location')
         st.plotly_chart(fig, use_container_width=True)
     
     # 商店年齡分析
@@ -1602,7 +1602,7 @@ def analyze_stores(df):
         df['Store_Age'] = 2025 - df['Outlet_Establishment_Year']
         fig = px.histogram(df,
                           x='Store_Age',
-                          title='商店年齡分布',
+                          title='Store Age Distribution',
                           nbins=20)
         st.plotly_chart(fig, use_container_width=True)
     
@@ -1610,7 +1610,7 @@ def analyze_stores(df):
         avg_price_by_age = df.groupby('Store_Age')['Item_MRP'].mean().round(2)
         fig = px.line(x=avg_price_by_age.index,
                      y=avg_price_by_age.values,
-                     title='商店年齡與平均商品價格的關係')
+                     title='Average Product Price by Store Age')
         st.plotly_chart(fig, use_container_width=True)
 
 def perform_advanced_analysis(df):
@@ -1653,7 +1653,7 @@ def perform_advanced_analysis(df):
                 x='重要性', 
                 y='特徵',
                 orientation='h',
-                title='特徵重要性分析')
+                title='Feature Importance Analysis')
     
     base_layout = create_figure_layout()
     base_layout['height'] = 400
@@ -1710,8 +1710,8 @@ def perform_advanced_analysis(df):
     """)
 
 def perform_correlation_analysis(df):
-    """執行相關性分析"""
-    st.subheader("🔄 相關性分析")
+    """相關性分析"""
+    st.subheader("相關性分析")
     
     # 選擇數值型特徵
     numeric_features = df.select_dtypes(include=['float64', 'int64']).columns
@@ -1728,18 +1728,18 @@ def perform_correlation_analysis(df):
     # 繪製熱力圖
     fig = px.imshow(
         corr_matrix,
-        labels=dict(color="相關係數"),
+        labels=dict(color="Correlation"),
         x=corr_matrix.columns,
         y=corr_matrix.columns,
         color_continuous_scale="RdBu",
-        title="特徵相關性熱力圖"
+        title="Feature Correlation Heatmap"
     )
     fig.update_layout(width=800, height=800)
     fig.update_layout(**create_figure_layout())
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key="correlation_heatmap")
     
     # 執行PCA分析
-    st.subheader("主成分分析 (PCA)")
+    st.subheader("Principal Component Analysis (PCA)")
     
     # 標準化數據
     scaler = StandardScaler()
@@ -1759,17 +1759,17 @@ def perform_correlation_analysis(df):
     fig.add_trace(go.Bar(
         x=[f'PC{i+1}' for i in range(len(explained_variance_ratio))],
         y=explained_variance_ratio,
-        name='解釋方差比'
+        name='Explained Variance Ratio'
     ))
     
     fig.add_trace(go.Scatter(
         x=[f'PC{i+1}' for i in range(len(cumulative_variance_ratio))],
         y=cumulative_variance_ratio,
-        name='累積解釋方差比',
+        name='Cumulative Explained Variance Ratio',
         line=dict(color='red')
     ))
     
-    fig.update_layout(title='主成分解釋方差比',
+    fig.update_layout(title='Principal Component Analysis',
                      xaxis_title="",
                      yaxis_title="")
     fig.update_layout(**create_figure_layout())
@@ -1782,11 +1782,11 @@ def perform_correlation_analysis(df):
         index=numeric_features
     )
     
-    st.write("### 主成分載荷量")
+    st.write("### Principal Component Loadings")
     st.dataframe(loadings.style.format("{:.3f}"))
     
     # 分析和解釋主要相關性
-    st.write("### 主要相關性分析")
+    st.write("### Key Correlation Analysis")
     
     # 找出強相關的特徵對
     strong_correlations = []
@@ -1806,9 +1806,9 @@ def perform_correlation_analysis(df):
     # 顯示強相關特徵對
     if strong_correlations:
         for idx, corr in enumerate(strong_correlations):
-            correlation_type = "正相關" if corr['correlation'] > 0 else "負相關"
-            st.write(f"**{corr['feature1']} 和 {corr['feature2']}**")
-            st.write(f"- 相關係數: {corr['correlation']:.3f} ({correlation_type})")
+            correlation_type = "Positive correlation" if corr['correlation'] > 0 else "Negative correlation"
+            st.write(f"**{corr['feature1']} and {corr['feature2']}**")
+            st.write(f"- Correlation: {corr['correlation']:.3f} ({correlation_type})")
             
             # 繪製散點圖
             fig = px.scatter(df,
@@ -1821,13 +1821,13 @@ def perform_correlation_analysis(df):
             
             # 生成業務建議
             if abs(corr['correlation']) > 0.7:
-                st.write("💡 **強相關性建議：**")
+                st.write("💡 **Strong Correlation Insights:**")
                 if corr['correlation'] > 0:
-                    st.write(f"- 考慮將{corr['feature1']}和{corr['feature2']}作為組合指標")
-                    st.write(f"- 可以通過提升{corr['feature1']}來帶動{corr['feature2']}的增長")
+                    st.write(f"- Consider using {corr['feature1']} and {corr['feature2']} as combined indicators")
+                    st.write(f"- Improving {corr['feature1']} may lead to growth in {corr['feature2']}")
                 else:
-                    st.write(f"- 注意{corr['feature1']}和{corr['feature2']}之間的權衡關係")
-                    st.write(f"- 需要在兩者之間找到最佳平衡點")
+                    st.write(f"- Note the trade-off between {corr['feature1']} and {corr['feature2']}")
+                    st.write(f"- Find optimal balance between these factors")
     else:
         st.write("未發現顯著的特徵相關性（相關係數絕對值 > 0.5）")
 
@@ -1877,8 +1877,8 @@ def perform_price_analysis(df):
     fig = px.histogram(df,
                       x='Item_MRP',
                       nbins=30,
-                      title='價格分布直方圖',
-                      labels={'Item_MRP': '價格', 'count': '商品數量'})
+                      title='Price Distribution',
+                      labels={'Item_MRP': 'Price', 'count': 'Number of Products'})
     fig.update_layout(**create_figure_layout())
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     
@@ -1889,9 +1889,9 @@ def perform_price_analysis(df):
     fig = px.scatter(df,
                     x='Item_MRP',
                     y='Item_Weight',
-                    title='價格與銷售額關係',
-                    labels={'Item_MRP': '價格',
-                           'Item_Weight': '銷售額'})
+                    title='Price vs Sales',
+                    labels={'Item_MRP': 'Price',
+                           'Item_Weight': 'Sales'})
     fig.update_layout(**create_figure_layout())
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     
@@ -2013,8 +2013,8 @@ def analyze_trends(df):
         fig = px.bar(type_trends.reset_index(), 
                     x='Item_Type', 
                     y='商品數量',
-                    title='商品類型數量分布',
-                    labels={'Item_Type': '商品類型', '商品數量': '數量'})
+                    title='Product Type Distribution',
+                    labels={'Item_Type': 'Product Type', '商品數量': 'Number'})
         fig.update_layout(**create_figure_layout())
         fig.update_xaxes(tickangle=45)
         st.plotly_chart(fig, use_container_width=True)
@@ -2024,8 +2024,8 @@ def analyze_trends(df):
         fig = px.bar(type_trends.reset_index(), 
                     x='Item_Type', 
                     y='平均價格',
-                    title='商品類型平均價格',
-                    labels={'Item_Type': '商品類型', '平均價格': '價格'})
+                    title='Average Price by Product Type',
+                    labels={'Item_Type': 'Product Type', '平均價格': 'Price'})
         fig.update_layout(**create_figure_layout())
         fig.update_xaxes(tickangle=45)
         st.plotly_chart(fig, use_container_width=True)
@@ -2041,10 +2041,10 @@ def analyze_trends(df):
                         x='Item_Visibility', 
                         y='Item_MRP',
                         color='Item_Type',
-                        title='商品可見度與價格關係',
-                        labels={'Item_Visibility': '可見度', 
-                               'Item_MRP': '價格',
-                               'Item_Type': '商品類型'})
+                        title='Product Visibility vs Price',
+                        labels={'Item_Visibility': 'Visibility', 
+                               'Item_MRP': 'Price',
+                               'Item_Type': 'Product Type'})
         fig.update_layout(**create_figure_layout())
         st.plotly_chart(fig, use_container_width=True)
     
@@ -2054,10 +2054,10 @@ def analyze_trends(df):
                         x='Item_Visibility', 
                         y='Item_Weight',
                         color='Item_Type',
-                        title='商品可見度與重量關係',
-                        labels={'Item_Visibility': '可見度', 
-                               'Item_Weight': '重量',
-                               'Item_Type': '商品類型'})
+                        title='Product Visibility vs Weight',
+                        labels={'Item_Visibility': 'Visibility', 
+                               'Item_Weight': 'Weight',
+                               'Item_Type': 'Product Type'})
         fig.update_layout(**create_figure_layout())
         st.plotly_chart(fig, use_container_width=True)
     
@@ -2083,11 +2083,11 @@ def analyze_trends(df):
                     x='Outlet_Size',
                     y='商品數量',
                     color='Outlet_Location_Type',
-                    title='不同規模商店的商品數量',
+                    title='Store Size Distribution',
                     barmode='group',
-                    labels={'Outlet_Size': '商店規模',
-                           'Outlet_Location_Type': '位置類型',
-                           '商品數量': '數量'})
+                    labels={'Outlet_Size': 'Store Size',
+                           'Outlet_Location_Type': 'Location Type',
+                           '商品數量': 'Number'})
         st.plotly_chart(fig, use_container_width=True)
     
     with col2:
@@ -2096,11 +2096,11 @@ def analyze_trends(df):
                     x='Outlet_Size',
                     y='平均價格',
                     color='Outlet_Location_Type',
-                    title='不同規模商店的平均價格',
+                    title='Average Price by Store Size',
                     barmode='group',
-                    labels={'Outlet_Size': '商店規模',
-                           'Outlet_Location_Type': '位置類型',
-                           '平均價格': '價格'})
+                    labels={'Outlet_Size': 'Store Size',
+                           'Outlet_Location_Type': 'Location Type',
+                           '平均價格': 'Price'})
         st.plotly_chart(fig, use_container_width=True)
     
     # 商店類型分析
@@ -2365,7 +2365,7 @@ def get_ai_response(consultation_content, data_context):
         return f"生成回應時發生錯誤：{str(e)}"
 
 def main():
-    st.title("🏪 商店銷售分析系統")
+    st.title("🏪 銷貨損益分析小幫手")
     
     # Initialize session state
     if 'df' not in st.session_state:
@@ -2375,7 +2375,7 @@ def main():
     with st.sidebar:
         st.title("系統介紹")
         st.markdown("""
-        ### 🏪 商店銷售分析系統
+        ### 🏪 銷貨損益分析小幫手
         
         這是一個全方位的商業分析工具，幫助您更好地理解您的業務數據：
         
