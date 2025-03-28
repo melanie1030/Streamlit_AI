@@ -419,7 +419,7 @@ def main():
         selected_model = st.selectbox(
             "選擇模型", 
             LLM_MODELS, 
-            index=3, 
+            index=0, 
             key="selected_model"
         )
         
