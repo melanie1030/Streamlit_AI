@@ -634,10 +634,11 @@ Important:
 
 Based on the request: {user_input}.
 Available columns: {csv_columns}.
-!重要!需求共有3
+!重要!需求共有
 1.圖表的顏色考慮使用其他的，不要使用預設
 2.在生成代碼時需要考慮plot的美觀性
 3.然後請使用繁體中文回應
+4.有任何針對資料集中想要知道的資訊，都可以使用plot來得知
 """
                         debug_log("Prompt constructed for CSV input with JSON response.")
                         append_message("system", prompt)
@@ -701,7 +702,7 @@ Available columns: {csv_columns}.
                         chart_base64 = base64.b64encode(buf.read()).decode("utf-8")
                         st.session_state.deep_analysis_image = chart_base64
                         debug_log("Chart has been converted to base64.")
-                        prompt_2 = f"""基於圖片給我更多資訊"""
+                        prompt_2 = f"""基於圖片給我更多資訊，並且對圖片最詳細的解讀，若圖片可以分析或預測出後續的走向，則多做說明"""
                         debug_log(f"Deep Analysis Prompt: {prompt_2}")
                         append_message("user", prompt_2)
                         debug_log("Deep analysis prompt appended to messages.")
