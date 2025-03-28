@@ -33,8 +33,7 @@ LLM_MODELS = [  # 修改後的模型列表
     "gpt-3.5-turbo-16k",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
-    "models/gemini-2.0-flash",
-    "o3-mini"
+    "models/gemini-2.0-flash"
 ]
 
 MAX_MESSAGES = 10  # Limit message history
