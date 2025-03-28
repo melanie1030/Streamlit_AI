@@ -34,7 +34,7 @@ LLM_MODELS = [  # 修改後的模型列表
     "gemini-1.5-flash",
     "gemini-1.5-pro",
     "models/gemini-2.0-flash",
-    "o3-mini-2025-01-31"
+    "o3-mini"
 ]
 
 MAX_MESSAGES = 10  # Limit message history
