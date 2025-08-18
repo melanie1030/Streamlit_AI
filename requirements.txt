@@ -32,3 +32,4 @@ xlsxwriter
 google-generativeai
 reportlab
 langchain_google_genai
+pygwalker
