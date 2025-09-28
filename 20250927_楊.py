@@ -329,8 +329,8 @@ def run_executive_workflow(api_key: str, df: pd.DataFrame, user_query: str, rag_
 
 # --- 主應用入口 ---
 def main():
-    st.set_page_config(page_title="Gemini 多功能 AI 助理", page_icon="✨", layout="wide")
-    st.title("✨ Gemini 多功能 AI 助理")
+    st.set_page_config(page_title="智慧型商業洞察引擎", layout="wide")
+    st.title("智慧型商業洞察引擎")
 
     executive_session_id = "executive_chat"
     keys_to_init = {
